@@ -1,4 +1,4 @@
-module jsonValidator
+module github.com/PacknTrack/jsonValidator
 
 go 1.20
 
