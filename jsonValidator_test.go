@@ -533,6 +533,83 @@ func TestValidate_Choices(t *testing.T) {
 	}
 }
 
+func TestValidate_Struct(t *testing.T) {
+	type Person struct {
+		Name string `validations:"type=string;required=true"`
+		Age  int    `validations:"type=int;required=true"`
+	}
+	type createObject struct {
+		Person     Person   `validations:"type=struct"`
+		PersonList []Person `validations:"type=[]struct"`
+	}
+	type input struct {
+		jsonData []byte
+		form     *createObject
+	}
+	type want struct {
+		errors []error
+		form   createObject
+	}
+	tests := []struct {
+		name  string
+		input input
+		want  want
+	}{
+		{
+			name: "test_structs",
+			input: input{
+				jsonData: []byte("{\"person\": {\"name\": \"Daniel\", \"age\": 26}}"),
+				form:     new(createObject),
+			},
+			want: want{
+				errors: nil,
+				form: createObject{
+					Person: Person{
+						Name: "Daniel",
+						Age:  26,
+					},
+					PersonList: nil,
+				},
+			},
+		},
+		{
+			name: "test_structs_errors",
+			input: input{
+				jsonData: []byte("{\"person\": {\"firstName\": \"Daniel\", \"age\": 26}}"),
+				form:     new(createObject),
+			},
+			want: want{
+				errors: []error{
+					ValidationError{Field: "firstName", Message: DefaultMessages["InvalidField"]},
+					ValidationError{Field: "name", Message: DefaultMessages["RequiredField"]},
+				},
+				form: createObject{
+					Person: Person{
+						Age: 26,
+					},
+					PersonList: nil,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Validate(tt.input.jsonData, tt.input.form)
+
+			// Sort
+			sort.Sort(Errors(got))
+			sort.Sort(Errors(tt.want.errors))
+
+			if !reflect.DeepEqual(got, tt.want.errors) {
+				t.Errorf("Validate() = %v, want %v", got, tt.want.errors)
+			}
+			if !reflect.DeepEqual(*tt.input.form, tt.want.form) {
+				t.Errorf("Validate() = %v, want %v", *tt.input.form, tt.want.form)
+			}
+		})
+	}
+}
+
 func TestValidationError_Error(t *testing.T) {
 	tests := []struct {
 		name            string

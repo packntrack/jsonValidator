@@ -1,19 +1,17 @@
 package jsonValidator
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-func getValidations(form any) map[string]*Validations {
+func getValidations(formValue reflect.Value) map[string]*Validations {
 
 	// 1) Initialize validations map and required fields map
 	validationsMap := make(map[string]*Validations)
-
-	// 2) Get the form reflect value.
-	formValue := reflect.ValueOf(form).Elem()
 
 	// 3) Iterate over the form value.
 	for i := 0; i < formValue.NumField(); i++ {
@@ -25,7 +23,7 @@ func getValidations(form any) map[string]*Validations {
 		validationsTag := field.Tag.Get(DefaultTagName)
 
 		// 3.3) Split the validations in the tag by ";".
-		validationsSplit := strings.Split(validationsTag, ";")
+		validationsSplit := strings.Split(validationsTag, DefaultSeparator)
 
 		// 3.4) Parse validations tags
 		validations := parseValidationTags(validationsSplit)
@@ -48,28 +46,24 @@ func parseValidationTags(validationsSplit []string) *Validations {
 	for _, validation := range validationsSplit {
 
 		// 2.1) Case: Required.
-		// TODO: Merge the contains and the CutPrefix together
-		if strings.Contains(validation, "required=") {
-			value, _ := strings.CutPrefix(validation, "required=")
+		if value, exists := strings.CutPrefix(validation, "required="); exists {
 			if value == "true" {
 				validations.Required = true
 			}
 		}
 
 		// 2.2) Case: Type.
-		if strings.Contains(validation, "type=") {
-			value, _ := strings.CutPrefix(validation, "type=")
+		if value, exists := strings.CutPrefix(validation, "type="); exists {
 			switch value {
-			case "string", "int", "float", "bool", "[]string", "[]int", "[]float":
+			case "string", "int", "float", "bool", "struct", "[]string", "[]int", "[]float", "[]struct":
 				validations.Type = value
 			}
 		}
 
 		// 2.3) Case: Min.
-		if strings.Contains(validation, "min=") {
-			value, _ := strings.CutPrefix(validation, "min=")
+		if value, exists := strings.CutPrefix(validation, "min="); exists {
 			switch validations.Type {
-			case "string", "int", "[]string", "[]int", "[]float":
+			case "string", "int", "[]string", "[]int", "[]float", "[]struct":
 				if min, err := strconv.ParseInt(value, 10, 0); err == nil {
 					validations.Min = float64(min)
 				}
@@ -81,10 +75,9 @@ func parseValidationTags(validationsSplit []string) *Validations {
 		}
 
 		// 2.4) Case: Max.
-		if strings.Contains(validation, "max=") {
-			value, _ := strings.CutPrefix(validation, "max=")
+		if value, exists := strings.CutPrefix(validation, "max="); exists {
 			switch validations.Type {
-			case "string", "int", "[]string", "[]int", "[]float":
+			case "string", "int", "[]string", "[]int", "[]float", "[]struct":
 				if min, err := strconv.ParseInt(value, 10, 0); err == nil {
 					validations.Max = float64(min)
 				}
@@ -96,11 +89,10 @@ func parseValidationTags(validationsSplit []string) *Validations {
 		}
 
 		// 2.5) Case: Choices.
-		if strings.Contains(validation, "choices=") {
-			value, _ := strings.CutPrefix(validation, "choices=")
+		if value, exists := strings.CutPrefix(validation, "choices="); exists {
 			if value != "" {
 				var choices []any
-				for _, choice := range strings.Split(value, ",") {
+				for _, choice := range strings.Split(value, DefaultChoicesSeparator) {
 					switch validations.Type {
 					case "string", "[]string":
 						choices = append(choices, choice)
@@ -123,7 +115,7 @@ func parseValidationTags(validationsSplit []string) *Validations {
 	return validations
 }
 
-func parseField(validations *Validations, fieldName string, fieldValue any, form any) []error {
+func parseField(validations *Validations, fieldName string, fieldValue any, form reflect.Value) []error {
 	switch validations.Type {
 	case "string":
 		return validateString(validations, fieldName, fieldValue, form)
@@ -133,6 +125,8 @@ func parseField(validations *Validations, fieldName string, fieldValue any, form
 		return validateFloat(validations, fieldName, fieldValue, form)
 	case "bool":
 		return validateBool(fieldName, fieldValue, form)
+	case "struct":
+		return validateStruct(fieldName, fieldValue, form)
 	case "[]string":
 		return validateList[string](validations, fieldName, fieldValue, form, validateStringType)
 	case "[]int":
@@ -144,7 +138,7 @@ func parseField(validations *Validations, fieldName string, fieldValue any, form
 	}
 }
 
-func validateString(validations *Validations, fieldName string, fieldValue any, form any) []error {
+func validateString(validations *Validations, fieldName string, fieldValue any, form reflect.Value) []error {
 
 	// 1) Initialize the errors list.
 	var errors []error
@@ -182,7 +176,7 @@ func validateString(validations *Validations, fieldName string, fieldValue any, 
 	}
 
 	// 5) Update form with the received value.
-	reflect.ValueOf(form).Elem().FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
+	form.FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
 
 	// 6) Return errors.
 	return errors
@@ -208,7 +202,7 @@ func validateStringType(fieldValue any) (string, bool) {
 	return value, invalidFormat
 }
 
-func validateInt(validations *Validations, fieldName string, fieldValue any, form any) []error {
+func validateInt(validations *Validations, fieldName string, fieldValue any, form reflect.Value) []error {
 
 	// 1) Initialize the errors list.
 	var errors []error
@@ -246,7 +240,7 @@ func validateInt(validations *Validations, fieldName string, fieldValue any, for
 	}
 
 	// 5) Update form with the received value.
-	reflect.ValueOf(form).Elem().FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
+	form.FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
 
 	// 6) Return errors.
 	return errors
@@ -281,7 +275,7 @@ func validateIntType(fieldValue any) (int, bool) {
 	return value, invalidFormat
 }
 
-func validateFloat(validations *Validations, fieldName string, fieldValue any, form any) []error {
+func validateFloat(validations *Validations, fieldName string, fieldValue any, form reflect.Value) []error {
 
 	// 1) Initialize the errors list.
 	var errors []error
@@ -319,7 +313,7 @@ func validateFloat(validations *Validations, fieldName string, fieldValue any, f
 	}
 
 	// 5) Update form with the received value.
-	reflect.ValueOf(form).Elem().FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
+	form.FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
 
 	// 6) Return errors.
 	return errors
@@ -351,7 +345,7 @@ func validateFloatType(fieldValue any) (float64, bool) {
 	return value, invalidFormat
 }
 
-func validateBool(fieldName string, fieldValue any, form any) []error {
+func validateBool(fieldName string, fieldValue any, form reflect.Value) []error {
 
 	// 1) Initialize the errors list.
 	var errors []error
@@ -364,7 +358,7 @@ func validateBool(fieldName string, fieldValue any, form any) []error {
 	}
 
 	// 3) Update form with the received value.
-	reflect.ValueOf(form).Elem().FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
+	form.FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(value))
 
 	// 4) Return errors.
 	return nil
@@ -394,7 +388,24 @@ func validateBoolType(fieldValue any) (bool, bool) {
 	return value, invalidFormat
 }
 
-func validateList[T string | int | float64](validations *Validations, fieldName string, fieldValue any, form any, validateElement func(any) (T, bool)) []error {
+func validateStruct(fieldName string, fieldValue any, form reflect.Value) []error {
+
+	// 1) Get field from the form and the inner struct.
+	field := form.FieldByName(TitleCase(fieldName))
+
+	// 2) Parse the value to []byte.
+	jsonData, _ := json.Marshal(fieldValue)
+
+	// 3) Get validations map.
+	validationsMap := getValidations(field)
+
+	errors := validateJsonData(jsonData, field, validationsMap)
+
+	// 4) Return errors.
+	return errors
+}
+
+func validateList[T string | int | float64](validations *Validations, fieldName string, fieldValue any, form reflect.Value, validateElement func(any) (T, bool)) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
@@ -438,7 +449,7 @@ func validateList[T string | int | float64](validations *Validations, fieldName 
 	}
 
 	// 7) Update the form with the parsed values.
-	reflect.ValueOf(form).Elem().FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(parsedValues))
+	form.FieldByName(TitleCase(fieldName)).Set(reflect.ValueOf(parsedValues))
 
 	// 8) Return errors.
 	return nil

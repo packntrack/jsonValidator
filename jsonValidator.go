@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"reflect"
 	"strings"
 	"unicode"
 )
@@ -20,10 +21,10 @@ func (vr ValidationError) Error() string {
 
 type Validations struct {
 	Type     string
+	Required bool
 	Min      float64
 	Max      float64
 	Choices  []any
-	Required bool
 }
 
 var DefaultMessages = map[string]string{
@@ -40,6 +41,8 @@ var DefaultMessages = map[string]string{
 }
 
 var DefaultTagName = "validations"
+var DefaultSeparator = ";"
+var DefaultChoicesSeparator = ","
 
 func TitleCase(str string) string {
 	return cases.Title(language.English, cases.NoLower).String(str)
@@ -64,6 +67,21 @@ func LowerCase(str string) string {
 // Validate validates the json data against a form received and update the form with the parsed data.
 func Validate(jsonData []byte, form any) []error {
 
+	// 1) Get form value.
+	formValue := reflect.ValueOf(form).Elem()
+
+	// 2) Get all the validations from the form.
+	validationsMap := getValidations(formValue)
+
+	// 3) Validate JSON data.
+	errors := validateJsonData(jsonData, formValue, validationsMap)
+
+	// 4) Return the errors.
+	return errors
+}
+
+func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[string]*Validations) []error {
+
 	// 1) Initialize errors list.
 	var errors []error
 
@@ -78,13 +96,10 @@ func Validate(jsonData []byte, form any) []error {
 		return errors
 	}
 
-	// 3) Get all the validations from the form.
-	validationsMap := getValidations(form)
-
-	// 4) Iterate over each key in the decodeJson map.
+	// 3) Iterate over each key in the decodeJson map.
 	for fieldName, fieldValue := range decodedJson {
 
-		// 4.1) Get the validations for the given fieldName.
+		// 3.1) Get the validations for the given fieldName.
 		validations, ok := validationsMap[fieldName]
 		if !ok {
 			errors = append(errors, ValidationError{
@@ -94,16 +109,16 @@ func Validate(jsonData []byte, form any) []error {
 			continue
 		}
 
-		// 4.2) Update the required bool to false since we have the field present.
+		// 3.2) Update the required bool to false since we have the field present.
 		validations.Required = false
 
-		// 4.3) Parse and validate the field against the defined validations.
+		// 3.3) Parse and validate the field against the defined validations.
 		if validationsErrors := parseField(validations, fieldName, fieldValue, form); validationsErrors != nil {
 			errors = append(errors, validationsErrors...)
 		}
 	}
 
-	// 5) Check if all the required fields were sent.
+	// 4) Check if all the required fields were sent.
 	for fieldName, validations := range validationsMap {
 		if validations.Required {
 			errors = append(errors, ValidationError{
@@ -113,6 +128,6 @@ func Validate(jsonData []byte, form any) []error {
 		}
 	}
 
-	// 6) Return the errors.
+	// 5) Return the errors.
 	return errors
 }
