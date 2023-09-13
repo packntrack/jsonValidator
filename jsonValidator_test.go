@@ -182,7 +182,7 @@ func TestValidate_BasicTypes(t *testing.T) {
 		{
 			name: "test_types_error",
 			input: input{
-				jsonData: []byte("{\"name\": [], \"code\": \"Daniel\", \"price\": \"Daniel\", \"successful\": 123, \"owners\": [[]], \"previousCodes\": [\"Daniel\"], \"previousPrices\": 123}"),
+				jsonData: []byte("{\"name\": [], \"code\": \"Daniel\", \"price\": \"Daniel\", \"successful\": 123, \"owners\": [[]], \"previousCodes\": [\"Daniel\"], \"previousPrices\": [\"Daniel\"]}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -191,9 +191,9 @@ func TestValidate_BasicTypes(t *testing.T) {
 					ValidationError{Field: "code", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
 					ValidationError{Field: "price", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
 					ValidationError{Field: "successful", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], 123)},
-					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], []any{})},
-					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
-					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], 123)},
+					ValidationError{Field: "owners[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], []any{})},
+					ValidationError{Field: "previousCodes[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
+					ValidationError{Field: "previousPrices[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
 				},
 				form: createObject{},
 			},
@@ -218,14 +218,20 @@ func TestValidate_BasicTypes(t *testing.T) {
 }
 
 func TestValidate_Required(t *testing.T) {
+	type Person struct {
+		Name string `validations:"type=string;required=true"`
+		Age  int    `validations:"type=int"`
+	}
 	type createObject struct {
 		Name           string    `validations:"type=string;required=true"`
 		Code           int       `validations:"type=int;required=true"`
 		Price          float64   `validations:"type=float;required=true"`
 		Successful     bool      `validations:"type=bool;required=true"`
+		Person         Person    `validations:"type=struct;required=true"`
 		Owners         []string  `validations:"type=[]string;required=true"`
 		PreviousCodes  []int     `validations:"type=[]int;required=true"`
 		PreviousPrices []float64 `validations:"type=[]float;required=true"`
+		PersonList     []Person  `validations:"type=[]struct;required=true"`
 	}
 	type input struct {
 		jsonData []byte
@@ -243,7 +249,7 @@ func TestValidate_Required(t *testing.T) {
 		{
 			name: "test_required",
 			input: input{
-				jsonData: []byte("{\"name\": \"Daniel\", \"code\": 123, \"price\": 12.3, \"successful\": true, \"owners\": [\"Daniel\", \"Silva\"], \"previousCodes\": [1, 2, 3], \"previousPrices\": [1.1, 2.2, 3.3]}"),
+				jsonData: []byte("{\"name\": \"Daniel\", \"code\": 123, \"price\": 12.3, \"successful\": true, \"person\": {\"name\": \"Daniel\"}, \"owners\": [\"Daniel\", \"Silva\"], \"previousCodes\": [1, 2, 3], \"previousPrices\": [1.1, 2.2, 3.3], \"personList\": [{\"name\": \"Silva\"}]}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -253,9 +259,11 @@ func TestValidate_Required(t *testing.T) {
 					Code:           123,
 					Price:          12.3,
 					Successful:     true,
+					Person:         Person{Name: "Daniel"},
 					Owners:         []string{"Daniel", "Silva"},
 					PreviousCodes:  []int{1, 2, 3},
 					PreviousPrices: []float64{1.1, 2.2, 3.3},
+					PersonList:     []Person{{Name: "Silva"}},
 				},
 			},
 		},
@@ -271,11 +279,34 @@ func TestValidate_Required(t *testing.T) {
 					ValidationError{Field: "code", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "price", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "successful", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "person", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "owners", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "previousCodes", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "previousPrices", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "personList", Message: DefaultMessages["RequiredField"]},
 				},
 				form: createObject{},
+			},
+		},
+		{
+			name: "test_required_struct_errors",
+			input: input{
+				jsonData: []byte("{\"person\": {\"age\": 26}, \"personList\": [{\"age\": 26}]}"),
+				form:     new(createObject),
+			},
+			want: want{
+				errors: []error{
+					ValidationError{Field: "name", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "code", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "price", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "successful", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "person.name", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "owners", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "previousCodes", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "previousPrices", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "personList[0].name", Message: DefaultMessages["RequiredField"]},
+				},
+				form: createObject{Person: Person{Age: 26}, PersonList: []Person{}},
 			},
 		},
 	}
@@ -291,13 +322,17 @@ func TestValidate_Required(t *testing.T) {
 				t.Errorf("Validate() = %v, want %v", got, tt.want.errors)
 			}
 			if !reflect.DeepEqual(*tt.input.form, tt.want.form) {
-				t.Errorf("Validate() = %v, want %v", *tt.input.form, tt.want.form)
+				t.Errorf("Validate() = %#v, want %#v", *tt.input.form, tt.want.form)
 			}
 		})
 	}
 }
 
 func TestValidate_MinMax(t *testing.T) {
+	type Person struct {
+		Name string `validations:"type=string;required=true"`
+		Age  int    `validations:"type=int;required=true"`
+	}
 	type createObject struct {
 		Name           string    `validations:"type=string;min=1;max=10"`
 		Code           int       `validations:"type=int;min=1;max=10"`
@@ -306,6 +341,7 @@ func TestValidate_MinMax(t *testing.T) {
 		Owners         []string  `validations:"type=[]string;min=1;max=2"`
 		PreviousCodes  []int     `validations:"type=[]int;min=1;max=2"`
 		PreviousPrices []float64 `validations:"type=[]float;min=1;max=2"`
+		PersonList     []Person  `validations:"type=[]struct;min=1;max=2"`
 	}
 	type input struct {
 		jsonData []byte
@@ -323,7 +359,7 @@ func TestValidate_MinMax(t *testing.T) {
 		{
 			name: "test_min",
 			input: input{
-				jsonData: []byte("{\"name\": \"D\", \"code\": 1, \"price\": 1.0, \"successful\": true, \"owners\": [\"Daniel\"], \"previousCodes\": [1], \"previousPrices\": [1.0]}"),
+				jsonData: []byte("{\"name\": \"D\", \"code\": 1, \"price\": 1.0, \"successful\": true, \"owners\": [\"Daniel\"], \"previousCodes\": [1], \"previousPrices\": [1.0], \"personList\": [{\"name\": \"Jose\", \"age\": 20}]}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -336,13 +372,14 @@ func TestValidate_MinMax(t *testing.T) {
 					Owners:         []string{"Daniel"},
 					PreviousCodes:  []int{1},
 					PreviousPrices: []float64{1.0},
+					PersonList:     []Person{{Name: "Jose", Age: 20}},
 				},
 			},
 		},
 		{
 			name: "test_max",
 			input: input{
-				jsonData: []byte("{\"name\": \"JoseDaniel\", \"code\": 10, \"price\": 10.0, \"successful\": true, \"owners\": [\"Daniel\", \"Silva\"], \"previousCodes\": [10, 9], \"previousPrices\": [10.0, 9.0]}"),
+				jsonData: []byte("{\"name\": \"JoseDaniel\", \"code\": 10, \"price\": 10.0, \"successful\": true, \"owners\": [\"Daniel\", \"Silva\"], \"previousCodes\": [10, 9], \"previousPrices\": [10.0, 9.0], \"personList\": [{\"name\": \"Jose\", \"age\": 20}, {\"name\": \"Silva\", \"age\": 32}]}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -355,13 +392,14 @@ func TestValidate_MinMax(t *testing.T) {
 					Owners:         []string{"Daniel", "Silva"},
 					PreviousCodes:  []int{10, 9},
 					PreviousPrices: []float64{10.0, 9.0},
+					PersonList:     []Person{{Name: "Jose", Age: 20}, {Name: "Silva", Age: 32}},
 				},
 			},
 		},
 		{
 			name: "test_min_error",
 			input: input{
-				jsonData: []byte("{\"name\": \"\", \"code\": 0, \"price\": 0.0, \"successful\": false, \"owners\": [], \"previousCodes\": [], \"previousPrices\": []}"),
+				jsonData: []byte("{\"name\": \"\", \"code\": 0, \"price\": 0.0, \"successful\": false, \"owners\": [], \"previousCodes\": [], \"previousPrices\": [], \"personList\": []}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -372,6 +410,7 @@ func TestValidate_MinMax(t *testing.T) {
 					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidMinList"], 1)},
 					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidMinList"], 1)},
 					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidMinList"], 1)},
+					ValidationError{Field: "personList", Message: fmt.Sprintf(DefaultMessages["InvalidMinList"], 1)},
 				},
 				form: createObject{},
 			},
@@ -379,7 +418,7 @@ func TestValidate_MinMax(t *testing.T) {
 		{
 			name: "test_max_error",
 			input: input{
-				jsonData: []byte("{\"name\": \"JoseDanielSilva\", \"code\": 11, \"price\": 11.0, \"successful\": false, \"owners\": [\"1\", \"2\", \"3\"], \"previousCodes\": [1, 2, 3], \"previousPrices\": [1.0, 2.0, 3.0]}"),
+				jsonData: []byte("{\"name\": \"JoseDanielSilva\", \"code\": 11, \"price\": 11.0, \"successful\": false, \"owners\": [\"1\", \"2\", \"3\"], \"previousCodes\": [1, 2, 3], \"previousPrices\": [1.0, 2.0, 3.0], \"personList\": [{\"name\": \"Jose\", \"age\": 20}, {\"name\": \"Daniel\", \"age\": 26}, {\"name\": \"Silva\", \"age\": 32}]}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -390,6 +429,7 @@ func TestValidate_MinMax(t *testing.T) {
 					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidMaxList"], 2)},
 					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidMaxList"], 2)},
 					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidMaxList"], 2)},
+					ValidationError{Field: "personList", Message: fmt.Sprintf(DefaultMessages["InvalidMaxList"], 2)},
 				},
 				form: createObject{},
 			},
@@ -485,12 +525,12 @@ func TestValidate_Choices(t *testing.T) {
 					ValidationError{Field: "name", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Daniele", []string{"Daniel"})},
 					ValidationError{Field: "code", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 101, []string{"1", "2"})},
 					ValidationError{Field: "price", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 101.0, []string{"1", "2"})},
-					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Jose", []string{"Daniel"})},
-					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Magalhaes", []string{"Daniel"})},
-					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3, []string{"1", "2"})},
-					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 4, []string{"1", "2"})},
-					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3.0, []string{"1", "2"})},
-					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 4.0, []string{"1", "2"})},
+					ValidationError{Field: "owners[0]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Jose", []string{"Daniel"})},
+					ValidationError{Field: "owners[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Magalhaes", []string{"Daniel"})},
+					ValidationError{Field: "previousCodes[0]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3, []string{"1", "2"})},
+					ValidationError{Field: "previousCodes[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 4, []string{"1", "2"})},
+					ValidationError{Field: "previousPrices[0]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3.0, []string{"1", "2"})},
+					ValidationError{Field: "previousPrices[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 4.0, []string{"1", "2"})},
 				},
 				form: createObject{},
 			},
@@ -506,10 +546,10 @@ func TestValidate_Choices(t *testing.T) {
 					ValidationError{Field: "name", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Jose", []string{"Daniel"})},
 					ValidationError{Field: "code", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 10, []string{"1", "2"})},
 					ValidationError{Field: "price", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 10.0, []string{"1", "2"})},
-					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Jose", []string{"Daniel"})},
-					ValidationError{Field: "owners", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Silva", []string{"Daniel"})},
-					ValidationError{Field: "previousCodes", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3, []string{"1", "2"})},
-					ValidationError{Field: "previousPrices", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3.0, []string{"1", "2"})},
+					ValidationError{Field: "owners[0]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Jose", []string{"Daniel"})},
+					ValidationError{Field: "owners[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], "Silva", []string{"Daniel"})},
+					ValidationError{Field: "previousCodes[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3, []string{"1", "2"})},
+					ValidationError{Field: "previousPrices[1]", Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], 3.0, []string{"1", "2"})},
 				},
 				form: createObject{},
 			},
@@ -535,8 +575,8 @@ func TestValidate_Choices(t *testing.T) {
 
 func TestValidate_Struct(t *testing.T) {
 	type Person struct {
-		Name string `validations:"type=string;required=true"`
-		Age  int    `validations:"type=int;required=true"`
+		Name string `validations:"type=string"`
+		Age  int    `validations:"type=int"`
 	}
 	type createObject struct {
 		Person     Person   `validations:"type=struct"`
@@ -558,36 +598,34 @@ func TestValidate_Struct(t *testing.T) {
 		{
 			name: "test_structs",
 			input: input{
-				jsonData: []byte("{\"person\": {\"name\": \"Daniel\", \"age\": 26}}"),
+				jsonData: []byte("{\"person\": {\"name\": \"Daniel\", \"age\": 26}, \"personList\": [{\"name\": \"Jose\", \"age\": 20}, {\"name\": \"Silva\", \"age\": 32}]}"),
 				form:     new(createObject),
 			},
 			want: want{
 				errors: nil,
 				form: createObject{
-					Person: Person{
-						Name: "Daniel",
-						Age:  26,
+					Person: Person{Name: "Daniel", Age: 26},
+					PersonList: []Person{
+						{Name: "Jose", Age: 20},
+						{Name: "Silva", Age: 32},
 					},
-					PersonList: nil,
 				},
 			},
 		},
 		{
 			name: "test_structs_errors",
 			input: input{
-				jsonData: []byte("{\"person\": {\"firstName\": \"Daniel\", \"age\": 26}}"),
+				jsonData: []byte("{\"person\": {\"firstName\": \"Daniel\", \"age\": 26}, \"personList\": [{\"firstName\": \"Jose\", \"age\": 20}]}"),
 				form:     new(createObject),
 			},
 			want: want{
 				errors: []error{
-					ValidationError{Field: "firstName", Message: DefaultMessages["InvalidField"]},
-					ValidationError{Field: "name", Message: DefaultMessages["RequiredField"]},
+					ValidationError{Field: "person.firstName", Message: DefaultMessages["InvalidField"]},
+					ValidationError{Field: "personList[0].firstName", Message: DefaultMessages["InvalidField"]},
 				},
 				form: createObject{
-					Person: Person{
-						Age: 26,
-					},
-					PersonList: nil,
+					Person:     Person{Age: 26},
+					PersonList: []Person{},
 				},
 			},
 		},

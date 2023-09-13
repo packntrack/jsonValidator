@@ -74,13 +74,13 @@ func Validate(jsonData []byte, form any) []error {
 	validationsMap := getValidations(formValue)
 
 	// 3) Validate JSON data.
-	errors := validateJsonData(jsonData, formValue, validationsMap)
+	errors := validateJsonData(jsonData, formValue, validationsMap, "")
 
 	// 4) Return the errors.
 	return errors
 }
 
-func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[string]*Validations) []error {
+func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[string]*Validations, parent string) []error {
 
 	// 1) Initialize errors list.
 	var errors []error
@@ -103,7 +103,7 @@ func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[st
 		validations, ok := validationsMap[fieldName]
 		if !ok {
 			errors = append(errors, ValidationError{
-				Field:   fieldName,
+				Field:   getFieldName(parent, fieldName),
 				Message: DefaultMessages["InvalidField"],
 			})
 			continue
@@ -113,7 +113,7 @@ func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[st
 		validations.Required = false
 
 		// 3.3) Parse and validate the field against the defined validations.
-		if validationsErrors := parseField(validations, fieldName, fieldValue, form); validationsErrors != nil {
+		if validationsErrors := parseField(validations, fieldName, fieldValue, form, parent); validationsErrors != nil {
 			errors = append(errors, validationsErrors...)
 		}
 	}
@@ -122,7 +122,7 @@ func validateJsonData(jsonData []byte, form reflect.Value, validationsMap map[st
 	for fieldName, validations := range validationsMap {
 		if validations.Required {
 			errors = append(errors, ValidationError{
-				Field:   fieldName,
+				Field:   getFieldName(parent, fieldName),
 				Message: DefaultMessages["RequiredField"],
 			})
 		}
