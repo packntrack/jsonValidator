@@ -13,26 +13,26 @@ func getValidations(formValue reflect.Value) map[string]*Validations {
 	// 1) Initialize validations map and required fields map
 	validationsMap := make(map[string]*Validations)
 
-	// 3) Iterate over the form value.
+	// 2) Iterate over the form value.
 	for i := 0; i < formValue.NumField(); i++ {
 
-		// 3.1) Get field from form value.
+		// 2.1) Get field from form value.
 		field := formValue.Type().Field(i)
 
-		// 3.2) Get the validation using the tag "validations".
+		// 2.2) Get the validation using the tag "validations".
 		validationsTag := field.Tag.Get(DefaultTagName)
 
-		// 3.3) Split the validations in the tag by ";".
+		// 2.3) Split the validations in the tag by ";".
 		validationsSplit := strings.Split(validationsTag, DefaultSeparator)
 
-		// 3.4) Parse validations tags
+		// 2.4) Parse validations tags
 		validations := parseValidationTags(validationsSplit)
 
-		// 3.5) Update validations map with the validations from this field
+		// 2.5) Update validations map with the validations from this field
 		validationsMap[LowerCase(field.Name)] = validations
 	}
 
-	// 4) Return validations instance
+	// 3) Return validations instance
 	return validationsMap
 
 }
@@ -64,12 +64,12 @@ func parseValidationTags(validationsSplit []string) *Validations {
 		if value, exists := strings.CutPrefix(validation, "min="); exists {
 			switch validations.Type {
 			case "string", "int", "[]string", "[]int", "[]float", "[]struct":
-				if min, err := strconv.ParseInt(value, 10, 0); err == nil {
-					validations.Min = float64(min)
+				if minL, err := strconv.ParseInt(value, 10, 0); err == nil {
+					validations.Min = float64(minL)
 				}
 			case "float":
-				if min, err := strconv.ParseFloat(value, 0); err == nil {
-					validations.Min = min
+				if minL, err := strconv.ParseFloat(value, 0); err == nil {
+					validations.Min = minL
 				}
 			}
 		}
@@ -78,12 +78,12 @@ func parseValidationTags(validationsSplit []string) *Validations {
 		if value, exists := strings.CutPrefix(validation, "max="); exists {
 			switch validations.Type {
 			case "string", "int", "[]string", "[]int", "[]float", "[]struct":
-				if min, err := strconv.ParseInt(value, 10, 0); err == nil {
-					validations.Max = float64(min)
+				if maxL, err := strconv.ParseInt(value, 10, 0); err == nil {
+					validations.Max = float64(maxL)
 				}
 			case "float":
-				if min, err := strconv.ParseFloat(value, 0); err == nil {
-					validations.Max = min
+				if maxL, err := strconv.ParseFloat(value, 0); err == nil {
+					validations.Max = maxL
 				}
 			}
 		}
@@ -128,11 +128,11 @@ func parseField(validations *Validations, fieldName string, fieldValue any, form
 	case "struct":
 		return validateStruct(fieldName, fieldValue, form, parent)
 	case "[]string":
-		return validateList[string](validations, fieldName, fieldValue, form, validateStringType, parent)
+		return validateList[*string](validations, fieldName, fieldValue, form, validateStringType, parent)
 	case "[]int":
-		return validateList[int](validations, fieldName, fieldValue, form, validateIntType, parent)
+		return validateList[*int](validations, fieldName, fieldValue, form, validateIntType, parent)
 	case "[]float":
-		return validateList[float64](validations, fieldName, fieldValue, form, validateFloatType, parent)
+		return validateList[*float64](validations, fieldName, fieldValue, form, validateFloatType, parent)
 	case "[]struct":
 		return validateStructList(validations, fieldName, fieldValue, form, parent)
 	default:
@@ -156,13 +156,13 @@ func validateString(validations *Validations, fieldName string, fieldValue any, 
 	}
 
 	// 3) Validate min and max.
-	if !reflect.ValueOf(validations.Min).IsZero() && len(value) < int(validations.Min) {
+	if !reflect.ValueOf(validations.Min).IsZero() && len(*value) < int(validations.Min) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMinString"], int(validations.Min)),
 		})
 	}
-	if !reflect.ValueOf(validations.Max).IsZero() && len(value) > int(validations.Max) {
+	if !reflect.ValueOf(validations.Max).IsZero() && len(*value) > int(validations.Max) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMaxString"], int(validations.Max)),
@@ -170,10 +170,10 @@ func validateString(validations *Validations, fieldName string, fieldValue any, 
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[string](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*string](validations.Choices, value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
-			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], value, validations.Choices),
+			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
 		})
 	}
 	if errors != nil {
@@ -187,7 +187,7 @@ func validateString(validations *Validations, fieldName string, fieldValue any, 
 	return errors
 }
 
-func validateStringType(fieldValue any) (string, bool) {
+func validateStringType(fieldValue any) (*string, bool) {
 
 	// 1) Initialize variables.
 	var invalidFormat = true
@@ -204,7 +204,7 @@ func validateStringType(fieldValue any) (string, bool) {
 	}
 
 	// 3) Return.
-	return value, invalidFormat
+	return &value, invalidFormat
 }
 
 func validateInt(validations *Validations, fieldName string, fieldValue any, form reflect.Value, parent string) []error {
@@ -223,13 +223,13 @@ func validateInt(validations *Validations, fieldName string, fieldValue any, for
 	}
 
 	// 3) Validate min and max.
-	if !reflect.ValueOf(validations.Min).IsZero() && value < int(validations.Min) {
+	if !reflect.ValueOf(validations.Min).IsZero() && *value < int(validations.Min) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMinNumber"], int(validations.Min)),
 		})
 	}
-	if !reflect.ValueOf(validations.Max).IsZero() && value > int(validations.Max) {
+	if !reflect.ValueOf(validations.Max).IsZero() && *value > int(validations.Max) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMaxNumber"], int(validations.Max)),
@@ -237,10 +237,10 @@ func validateInt(validations *Validations, fieldName string, fieldValue any, for
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[int](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*int](validations.Choices, value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
-			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], value, validations.Choices),
+			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
 		})
 	}
 	if errors != nil {
@@ -254,7 +254,7 @@ func validateInt(validations *Validations, fieldName string, fieldValue any, for
 	return errors
 }
 
-func validateIntType(fieldValue any) (int, bool) {
+func validateIntType(fieldValue any) (*int, bool) {
 
 	// 1) Initialize variables.
 	var invalidFormat = true
@@ -280,7 +280,7 @@ func validateIntType(fieldValue any) (int, bool) {
 	}
 
 	// 3) Return.
-	return value, invalidFormat
+	return &value, invalidFormat
 }
 
 func validateFloat(validations *Validations, fieldName string, fieldValue any, form reflect.Value, parent string) []error {
@@ -299,13 +299,13 @@ func validateFloat(validations *Validations, fieldName string, fieldValue any, f
 	}
 
 	// 3) Validate min and max.
-	if !reflect.ValueOf(validations.Min).IsZero() && value < validations.Min {
+	if !reflect.ValueOf(validations.Min).IsZero() && *value < validations.Min {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMinNumber"], validations.Min),
 		})
 	}
-	if !reflect.ValueOf(validations.Max).IsZero() && value > validations.Max {
+	if !reflect.ValueOf(validations.Max).IsZero() && *value > validations.Max {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidMaxNumber"], validations.Max),
@@ -313,10 +313,10 @@ func validateFloat(validations *Validations, fieldName string, fieldValue any, f
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[float64](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*float64](validations.Choices, value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
-			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], value, validations.Choices),
+			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
 		})
 	}
 	if errors != nil {
@@ -330,7 +330,7 @@ func validateFloat(validations *Validations, fieldName string, fieldValue any, f
 	return errors
 }
 
-func validateFloatType(fieldValue any) (float64, bool) {
+func validateFloatType(fieldValue any) (*float64, bool) {
 
 	// 1) Initialize variables.
 	var invalidFormat = true
@@ -353,7 +353,7 @@ func validateFloatType(fieldValue any) (float64, bool) {
 	}
 
 	// 3) Return.
-	return value, invalidFormat
+	return &value, invalidFormat
 }
 
 func validateBool(fieldName string, fieldValue any, form reflect.Value, parent string) []error {
@@ -378,7 +378,7 @@ func validateBool(fieldName string, fieldValue any, form reflect.Value, parent s
 	return nil
 }
 
-func validateBoolType(fieldValue any) (bool, bool) {
+func validateBoolType(fieldValue any) (*bool, bool) {
 
 	// 1) Initialize variables.
 	var invalidFormat = true
@@ -399,13 +399,17 @@ func validateBoolType(fieldValue any) (bool, bool) {
 	}
 
 	// 3) Return.
-	return value, invalidFormat
+	return &value, invalidFormat
 }
 
 func validateStruct(fieldName string, fieldValue any, form reflect.Value, parent string) []error {
 
 	// 1) Get field from the form and the inner struct.
 	field := form.FieldByName(TitleCase(fieldName))
+
+	// 2) Instantiate the field with the respecting type.
+	field.Set(reflect.New(field.Type().Elem()))
+	field = field.Elem()
 
 	// 2) Parse the value to []byte.
 	jsonData, _ := json.Marshal(fieldValue)
@@ -419,7 +423,7 @@ func validateStruct(fieldName string, fieldValue any, form reflect.Value, parent
 	return errors
 }
 
-func validateList[T string | int | float64](validations *Validations, fieldName string, fieldValue any, form reflect.Value, validateElement func(any) (T, bool), parent string) []error {
+func validateList[T *string | *int | *float64](validations *Validations, fieldName string, fieldValue any, form reflect.Value, validateElement func(any) (T, bool), parent string) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
@@ -518,7 +522,7 @@ func validateStructList(validations *Validations, fieldName string, fieldValue a
 	return errors
 }
 
-func parseElements[T string | int | float64](valuesList []any, validateElement func(any) (T, bool), parent string) ([]T, []error) {
+func parseElements[T *string | *int | *float64](valuesList []any, validateElement func(any) (T, bool), parent string) ([]T, []error) {
 
 	// 1) Initialize errors list and values parsed list.
 	var errors []error
@@ -558,8 +562,10 @@ func parseStructElements(field reflect.Value, valueList []any, parent string) (r
 	// 3) Iterate over the value list to validate and parse each element.
 	for i, value := range valueList {
 
-		// 3.1) Get the element by the index.
+		// 3.1) Get the element by the index and initialise the inner struct pointer.
 		element := field.Index(i)
+		element.Set(reflect.New(element.Type().Elem()))
+		element = element.Elem()
 
 		// 3.2) Marshal the value to json.
 		jsonData, _ := json.Marshal(value)
@@ -576,7 +582,7 @@ func parseStructElements(field reflect.Value, valueList []any, parent string) (r
 	return field, errors
 }
 
-func validateListChoices[T string | int | float64](choices []any, parsedValues []T, parent string) []error {
+func validateListChoices[T *string | *int | *float64](choices []any, parsedValues []T, parent string) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
@@ -587,7 +593,7 @@ func validateListChoices[T string | int | float64](choices []any, parsedValues [
 			if !contains[T](choices, element) {
 				errors = append(errors, ValidationError{
 					Field:   parent + "[" + strconv.Itoa(i) + "]",
-					Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], element, choices),
+					Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], reflect.ValueOf(element).Elem(), choices),
 				})
 			}
 		}
@@ -597,7 +603,7 @@ func validateListChoices[T string | int | float64](choices []any, parsedValues [
 	return errors
 }
 
-func removeDuplicate[T string | int | float64](sliceList []T) []T {
+func removeDuplicate[T *string | *int | *float64](sliceList []T) []T {
 	allKeys := make(map[T]bool)
 	var list []T
 	for _, item := range sliceList {
@@ -609,9 +615,9 @@ func removeDuplicate[T string | int | float64](sliceList []T) []T {
 	return list
 }
 
-func contains[T string | int | float64](sliceList []any, value T) bool {
+func contains[T *string | *int | *float64](sliceList []any, value T) bool {
 	for _, element := range sliceList {
-		if value == element.(T) {
+		if reflect.ValueOf(element).Interface() == reflect.ValueOf(value).Elem().Interface() {
 			return true
 		}
 	}
