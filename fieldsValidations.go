@@ -128,11 +128,11 @@ func parseField(validations *Validations, fieldName string, fieldValue any, form
 	case "struct":
 		return validateStruct(fieldName, fieldValue, form, parent)
 	case "[]string":
-		return validateList[*string](validations, fieldName, fieldValue, form, validateStringType, parent)
+		return validateList[string](validations, fieldName, fieldValue, form, validateStringType, parent)
 	case "[]int":
-		return validateList[*int](validations, fieldName, fieldValue, form, validateIntType, parent)
+		return validateList[int](validations, fieldName, fieldValue, form, validateIntType, parent)
 	case "[]float":
-		return validateList[*float64](validations, fieldName, fieldValue, form, validateFloatType, parent)
+		return validateList[float64](validations, fieldName, fieldValue, form, validateFloatType, parent)
 	case "[]struct":
 		return validateStructList(validations, fieldName, fieldValue, form, parent)
 	default:
@@ -170,7 +170,7 @@ func validateString(validations *Validations, fieldName string, fieldValue any, 
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*string](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[string](validations.Choices, *value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
@@ -237,7 +237,7 @@ func validateInt(validations *Validations, fieldName string, fieldValue any, for
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*int](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[int](validations.Choices, *value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
@@ -313,7 +313,7 @@ func validateFloat(validations *Validations, fieldName string, fieldValue any, f
 	}
 
 	// 4) Validate choices.
-	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[*float64](validations.Choices, value) {
+	if !reflect.ValueOf(validations.Choices).IsZero() && !contains[float64](validations.Choices, *value) {
 		errors = append(errors, ValidationError{
 			Field:   getFieldName(parent, fieldName),
 			Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], *value, validations.Choices),
@@ -423,7 +423,7 @@ func validateStruct(fieldName string, fieldValue any, form reflect.Value, parent
 	return errors
 }
 
-func validateList[T *string | *int | *float64](validations *Validations, fieldName string, fieldValue any, form reflect.Value, validateElement func(any) (T, bool), parent string) []error {
+func validateList[T string | int | float64](validations *Validations, fieldName string, fieldValue any, form reflect.Value, validateElement func(any) (*T, bool), parent string) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
@@ -509,20 +509,14 @@ func validateStructList(validations *Validations, fieldName string, fieldValue a
 
 	// 4) Parse struct elements.
 	field := form.FieldByName(TitleCase(fieldName))
-	parsedElements, errs := parseStructElements(field, valueList, getFieldName(parent, fieldName))
+	errs := parseStructElements(field, valueList, getFieldName(parent, fieldName))
 	errors = append(errors, errs...)
-	if errors != nil {
-		return errors
-	}
 
-	// 5) Set the value on the form.
-	field.Set(reflect.ValueOf(parsedElements.Interface()))
-
-	// 6) Return errors.
+	// 5) Return errors.
 	return errors
 }
 
-func parseElements[T *string | *int | *float64](valuesList []any, validateElement func(any) (T, bool), parent string) ([]T, []error) {
+func parseElements[T string | int | float64](valuesList []any, validateElement func(any) (*T, bool), parent string) ([]T, []error) {
 
 	// 1) Initialize errors list and values parsed list.
 	var errors []error
@@ -543,29 +537,27 @@ func parseElements[T *string | *int | *float64](valuesList []any, validateElemen
 		}
 
 		// 2.3) Add the value to the values parsed list.
-		parsedValues = append(parsedValues, elemValue)
+		parsedValues = append(parsedValues, *elemValue)
 	}
 
 	// 3) Return the parsed values and the errors.
 	return parsedValues, errors
 }
 
-func parseStructElements(field reflect.Value, valueList []any, parent string) (reflect.Value, []error) {
+func parseStructElements(field reflect.Value, valueList []any, parent string) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
 
 	// 2) Make the slice cap and len the same as the size of the valueList.
 	field.Grow(len(valueList))
-	field = field.Slice(0, len(valueList))
+	sliceField := field.Slice(0, len(valueList))
 
 	// 3) Iterate over the value list to validate and parse each element.
 	for i, value := range valueList {
 
 		// 3.1) Get the element by the index and initialise the inner struct pointer.
-		element := field.Index(i)
-		element.Set(reflect.New(element.Type().Elem()))
-		element = element.Elem()
+		element := sliceField.Index(i)
 
 		// 3.2) Marshal the value to json.
 		jsonData, _ := json.Marshal(value)
@@ -578,11 +570,16 @@ func parseStructElements(field reflect.Value, valueList []any, parent string) (r
 		errors = append(errors, errs...)
 	}
 
-	// 4) Return.
-	return field, errors
+	// 4) Set the value on the form.
+	if errors == nil {
+		field.Set(reflect.ValueOf(sliceField.Interface()))
+	}
+
+	// 5) Return.
+	return errors
 }
 
-func validateListChoices[T *string | *int | *float64](choices []any, parsedValues []T, parent string) []error {
+func validateListChoices[T string | int | float64](choices []any, parsedValues []T, parent string) []error {
 
 	// 1) Initialize an errors list.
 	var errors []error
@@ -593,7 +590,7 @@ func validateListChoices[T *string | *int | *float64](choices []any, parsedValue
 			if !contains[T](choices, element) {
 				errors = append(errors, ValidationError{
 					Field:   parent + "[" + strconv.Itoa(i) + "]",
-					Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], reflect.ValueOf(element).Elem(), choices),
+					Message: fmt.Sprintf(DefaultMessages["InvalidChoice"], reflect.ValueOf(element), choices),
 				})
 			}
 		}
@@ -603,7 +600,7 @@ func validateListChoices[T *string | *int | *float64](choices []any, parsedValue
 	return errors
 }
 
-func removeDuplicate[T *string | *int | *float64](sliceList []T) []T {
+func removeDuplicate[T string | int | float64](sliceList []T) []T {
 	allKeys := make(map[T]bool)
 	var list []T
 	for _, item := range sliceList {
@@ -615,9 +612,9 @@ func removeDuplicate[T *string | *int | *float64](sliceList []T) []T {
 	return list
 }
 
-func contains[T *string | *int | *float64](sliceList []any, value T) bool {
+func contains[T string | int | float64](sliceList []any, value T) bool {
 	for _, element := range sliceList {
-		if reflect.ValueOf(element).Interface() == reflect.ValueOf(value).Elem().Interface() {
+		if reflect.ValueOf(element).Interface() == reflect.ValueOf(value).Interface() {
 			return true
 		}
 	}

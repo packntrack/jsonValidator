@@ -71,13 +71,14 @@ func TestLowerCase(t *testing.T) {
 
 func TestValidate_BasicTypes(t *testing.T) {
 	type createObject struct {
-		Name           *string    `validations:"type=string"`
-		Code           *int       `validations:"type=int"`
-		Price          *float64   `validations:"type=float"`
-		Successful     *bool      `validations:"type=bool"`
-		Owners         []*string  `validations:"type=[]string"`
-		PreviousCodes  []*int     `validations:"type=[]int"`
-		PreviousPrices []*float64 `validations:"type=[]float"`
+		Name            *string   `validations:"type=string"`
+		Code            *int      `validations:"type=int"`
+		Price           *float64  `validations:"type=float"`
+		Successful      *bool     `validations:"type=bool"`
+		Owners          []string  `validations:"type=[]string"`
+		PreviousCodes   []int     `validations:"type=[]int"`
+		PreviousPrices  []float64 `validations:"type=[]float"`
+		PreviousPrices2 []float64 `validations:"type=[]float"`
 	}
 	type input struct {
 		jsonData []byte
@@ -105,9 +106,9 @@ func TestValidate_BasicTypes(t *testing.T) {
 					Code:           toIntPointer(123),
 					Price:          toFloatPointer(12.3),
 					Successful:     toBoolPointer(true),
-					Owners:         []*string{toStringPointer("Daniel"), toStringPointer("Silva")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2), toIntPointer(3)},
-					PreviousPrices: []*float64{toFloatPointer(1.1), toFloatPointer(2.2), toFloatPointer(3.3)},
+					Owners:         []string{"Daniel", "Silva"},
+					PreviousCodes:  []int{1, 2, 3},
+					PreviousPrices: []float64{1.1, 2.2, 3.3},
 				},
 			},
 		},
@@ -124,9 +125,9 @@ func TestValidate_BasicTypes(t *testing.T) {
 					Code:           toIntPointer(123),
 					Price:          toFloatPointer(12.3),
 					Successful:     toBoolPointer(true),
-					Owners:         []*string{toStringPointer("Daniel"), toStringPointer("Silva")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2), toIntPointer(3)},
-					PreviousPrices: []*float64{toFloatPointer(1.1), toFloatPointer(2.2), toFloatPointer(3.3)},
+					Owners:         []string{"Daniel", "Silva"},
+					PreviousCodes:  []int{1, 2, 3},
+					PreviousPrices: []float64{1.1, 2.2, 3.3},
 				},
 			},
 		},
@@ -143,9 +144,9 @@ func TestValidate_BasicTypes(t *testing.T) {
 					Code:           toIntPointer(123),
 					Price:          toFloatPointer(123),
 					Successful:     toBoolPointer(true),
-					Owners:         []*string{toStringPointer("123"), toStringPointer("456")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2), toIntPointer(3)},
-					PreviousPrices: []*float64{toFloatPointer(1), toFloatPointer(2), toFloatPointer(3)},
+					Owners:         []string{"123", "456"},
+					PreviousCodes:  []int{1, 2, 3},
+					PreviousPrices: []float64{1, 2, 3},
 				},
 			},
 		},
@@ -162,9 +163,9 @@ func TestValidate_BasicTypes(t *testing.T) {
 					Code:           toIntPointer(12),
 					Price:          toFloatPointer(12.3),
 					Successful:     toBoolPointer(true),
-					Owners:         []*string{toStringPointer("12.3"), toStringPointer("45.6")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2), toIntPointer(3)},
-					PreviousPrices: []*float64{toFloatPointer(1.1), toFloatPointer(2.2), toFloatPointer(3.3)},
+					Owners:         []string{"12.3", "45.6"},
+					PreviousCodes:  []int{1, 2, 3},
+					PreviousPrices: []float64{1.1, 2.2, 3.3},
 				},
 			},
 		},
@@ -196,7 +197,7 @@ func TestValidate_BasicTypes(t *testing.T) {
 		{
 			name: "test_types_error",
 			input: input{
-				jsonData: []byte("{\"name\": [], \"code\": \"Daniel\", \"price\": \"Daniel\", \"successful\": 123, \"owners\": [[]], \"previousCodes\": [\"Daniel\"], \"previousPrices\": [\"Daniel\"]}"),
+				jsonData: []byte("{\"name\": [], \"code\": \"Daniel\", \"price\": \"Daniel\", \"successful\": 123, \"owners\": [[]], \"previousCodes\": [\"Daniel\"], \"previousPrices\": [\"Daniel\"], \"previousPrices2\": {}}"),
 				form:     new(createObject),
 			},
 			want: want{
@@ -208,6 +209,7 @@ func TestValidate_BasicTypes(t *testing.T) {
 					ValidationError{Field: "owners[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], []any{})},
 					ValidationError{Field: "previousCodes[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
 					ValidationError{Field: "previousPrices[0]", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], "Daniel")},
+					ValidationError{Field: "previousPrices2", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], map[string]string{})},
 				},
 				form: createObject{},
 			},
@@ -240,15 +242,15 @@ func TestValidate_Required(t *testing.T) {
 		Age  *int    `validations:"type=int"`
 	}
 	type createObject struct {
-		Name           *string    `validations:"type=string;required=true"`
-		Code           *int       `validations:"type=int;required=true"`
-		Price          *float64   `validations:"type=float;required=true"`
-		Successful     *bool      `validations:"type=bool;required=true"`
-		Person         *Person    `validations:"type=struct;required=true"`
-		Owners         []*string  `validations:"type=[]string;required=true"`
-		PreviousCodes  []*int     `validations:"type=[]int;required=true"`
-		PreviousPrices []*float64 `validations:"type=[]float;required=true"`
-		PersonList     []*Person  `validations:"type=[]struct;required=true"`
+		Name           *string   `validations:"type=string;required=true"`
+		Code           *int      `validations:"type=int;required=true"`
+		Price          *float64  `validations:"type=float;required=true"`
+		Successful     *bool     `validations:"type=bool;required=true"`
+		Person         *Person   `validations:"type=struct;required=true"`
+		Owners         []string  `validations:"type=[]string;required=true"`
+		PreviousCodes  []int     `validations:"type=[]int;required=true"`
+		PreviousPrices []float64 `validations:"type=[]float;required=true"`
+		PersonList     []Person  `validations:"type=[]struct;required=true"`
 	}
 	type input struct {
 		jsonData []byte
@@ -277,10 +279,10 @@ func TestValidate_Required(t *testing.T) {
 					Price:          toFloatPointer(12.3),
 					Successful:     toBoolPointer(true),
 					Person:         &Person{Name: toStringPointer("Daniel")},
-					Owners:         []*string{toStringPointer("Daniel"), toStringPointer("Silva")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2), toIntPointer(3)},
-					PreviousPrices: []*float64{toFloatPointer(1.1), toFloatPointer(2.2), toFloatPointer(3.3)},
-					PersonList:     []*Person{{Name: toStringPointer("Silva")}},
+					Owners:         []string{"Daniel", "Silva"},
+					PreviousCodes:  []int{1, 2, 3},
+					PreviousPrices: []float64{1.1, 2.2, 3.3},
+					PersonList:     []Person{{Name: toStringPointer("Silva")}},
 				},
 			},
 		},
@@ -323,7 +325,7 @@ func TestValidate_Required(t *testing.T) {
 					ValidationError{Field: "previousPrices", Message: DefaultMessages["RequiredField"]},
 					ValidationError{Field: "personList[0].name", Message: DefaultMessages["RequiredField"]},
 				},
-				form: createObject{Person: &Person{Age: toIntPointer(26)}, PersonList: []*Person{}},
+				form: createObject{Person: &Person{Age: toIntPointer(26)}, PersonList: []Person{}},
 			},
 		},
 	}
@@ -354,13 +356,13 @@ func TestValidate_MinMax(t *testing.T) {
 		Age  *int    `validations:"type=int;required=true"`
 	}
 	type createObject struct {
-		Name           *string    `validations:"type=string;min=1;max=10"`
-		Code           *int       `validations:"type=int;min=1;max=10"`
-		Price          *float64   `validations:"type=float;min=1;max=10"`
-		Owners         []*string  `validations:"type=[]string;min=1;max=2"`
-		PreviousCodes  []*int     `validations:"type=[]int;min=1;max=2"`
-		PreviousPrices []*float64 `validations:"type=[]float;min=1;max=2"`
-		PersonList     []*Person  `validations:"type=[]struct;min=1;max=2"`
+		Name           *string   `validations:"type=string;min=1;max=10"`
+		Code           *int      `validations:"type=int;min=1;max=10"`
+		Price          *float64  `validations:"type=float;min=1;max=10"`
+		Owners         []string  `validations:"type=[]string;min=1;max=2"`
+		PreviousCodes  []int     `validations:"type=[]int;min=1;max=2"`
+		PreviousPrices []float64 `validations:"type=[]float;min=1;max=2"`
+		PersonList     []Person  `validations:"type=[]struct;min=1;max=2"`
 	}
 	type input struct {
 		jsonData []byte
@@ -387,10 +389,10 @@ func TestValidate_MinMax(t *testing.T) {
 					Name:           toStringPointer("D"),
 					Code:           toIntPointer(1),
 					Price:          toFloatPointer(1.0),
-					Owners:         []*string{toStringPointer("Daniel")},
-					PreviousCodes:  []*int{toIntPointer(1)},
-					PreviousPrices: []*float64{toFloatPointer(1.0)},
-					PersonList:     []*Person{{Name: toStringPointer("Jose"), Age: toIntPointer(20)}},
+					Owners:         []string{"Daniel"},
+					PreviousCodes:  []int{1},
+					PreviousPrices: []float64{1.0},
+					PersonList:     []Person{{Name: toStringPointer("Jose"), Age: toIntPointer(20)}},
 				},
 			},
 		},
@@ -406,10 +408,10 @@ func TestValidate_MinMax(t *testing.T) {
 					Name:           toStringPointer("JoseDaniel"),
 					Code:           toIntPointer(10),
 					Price:          toFloatPointer(10.0),
-					Owners:         []*string{toStringPointer("Daniel"), toStringPointer("Silva")},
-					PreviousCodes:  []*int{toIntPointer(10), toIntPointer(9)},
-					PreviousPrices: []*float64{toFloatPointer(10.0), toFloatPointer(9.0)},
-					PersonList:     []*Person{{Name: toStringPointer("Jose"), Age: toIntPointer(20)}, {Name: toStringPointer("Silva"), Age: toIntPointer(32)}},
+					Owners:         []string{"Daniel", "Silva"},
+					PreviousCodes:  []int{10, 9},
+					PreviousPrices: []float64{10.0, 9.0},
+					PersonList:     []Person{{Name: toStringPointer("Jose"), Age: toIntPointer(20)}, {Name: toStringPointer("Silva"), Age: toIntPointer(32)}},
 				},
 			},
 		},
@@ -475,12 +477,12 @@ func TestValidate_MinMax(t *testing.T) {
 
 func TestValidate_Choices(t *testing.T) {
 	type createObject struct {
-		Name           *string    `validations:"type=string;choices=Daniel"`
-		Code           *int       `validations:"type=int;choices=1,2"`
-		Price          *float64   `validations:"type=float;choices=1.0,2.0"`
-		Owners         []*string  `validations:"type=[]string;choices=Daniel"`
-		PreviousCodes  []*int     `validations:"type=[]int;choices=1,2"`
-		PreviousPrices []*float64 `validations:"type=[]float;choices=1.0,2.0"`
+		Name           *string   `validations:"type=string;choices=Daniel"`
+		Code           *int      `validations:"type=int;choices=1,2"`
+		Price          *float64  `validations:"type=float;choices=1.0,2.0"`
+		Owners         []string  `validations:"type=[]string;choices=Daniel"`
+		PreviousCodes  []int     `validations:"type=[]int;choices=1,2"`
+		PreviousPrices []float64 `validations:"type=[]float;choices=1.0,2.0"`
 	}
 	type input struct {
 		jsonData []byte
@@ -507,9 +509,9 @@ func TestValidate_Choices(t *testing.T) {
 					Name:           toStringPointer("Daniel"),
 					Code:           toIntPointer(1),
 					Price:          toFloatPointer(1.0),
-					Owners:         []*string{toStringPointer("Daniel")},
-					PreviousCodes:  []*int{toIntPointer(1), toIntPointer(2)},
-					PreviousPrices: []*float64{toFloatPointer(1.0), toFloatPointer(2.0)},
+					Owners:         []string{"Daniel"},
+					PreviousCodes:  []int{1, 2},
+					PreviousPrices: []float64{1.0, 2.0},
 				},
 			},
 		},
@@ -525,9 +527,9 @@ func TestValidate_Choices(t *testing.T) {
 					Name:           toStringPointer("Daniel"),
 					Code:           toIntPointer(2),
 					Price:          toFloatPointer(2.0),
-					Owners:         []*string{toStringPointer("Daniel")},
-					PreviousCodes:  []*int{toIntPointer(2)},
-					PreviousPrices: []*float64{toFloatPointer(2.0)},
+					Owners:         []string{"Daniel"},
+					PreviousCodes:  []int{2},
+					PreviousPrices: []float64{2.0},
 				},
 			},
 		},
@@ -599,8 +601,9 @@ func TestValidate_Struct(t *testing.T) {
 		Age  *int    `validations:"type=int"`
 	}
 	type createObject struct {
-		Person     *Person   `validations:"type=struct"`
-		PersonList []*Person `validations:"type=[]struct"`
+		Person      *Person  `validations:"type=struct"`
+		PersonList  []Person `validations:"type=[]struct"`
+		PersonList2 []Person `validations:"type=[]struct"`
 	}
 	type input struct {
 		jsonData []byte
@@ -625,7 +628,7 @@ func TestValidate_Struct(t *testing.T) {
 				errors: nil,
 				form: createObject{
 					Person: &Person{Name: toStringPointer("Daniel"), Age: toIntPointer(26)},
-					PersonList: []*Person{
+					PersonList: []Person{
 						{Name: toStringPointer("Jose"), Age: toIntPointer(20)},
 						{Name: toStringPointer("Silva"), Age: toIntPointer(32)},
 					},
@@ -635,17 +638,18 @@ func TestValidate_Struct(t *testing.T) {
 		{
 			name: "test_structs_errors",
 			input: input{
-				jsonData: []byte("{\"person\": {\"firstName\": \"Daniel\", \"age\": 26}, \"personList\": [{\"firstName\": \"Jose\", \"age\": 20}]}"),
+				jsonData: []byte("{\"person\": {\"firstName\": \"Daniel\", \"age\": 26}, \"personList\": [{\"firstName\": \"Jose\", \"age\": 20}], \"personList2\": {}}"),
 				form:     new(createObject),
 			},
 			want: want{
 				errors: []error{
 					ValidationError{Field: "person.firstName", Message: DefaultMessages["InvalidField"]},
 					ValidationError{Field: "personList[0].firstName", Message: DefaultMessages["InvalidField"]},
+					ValidationError{Field: "personList2", Message: fmt.Sprintf(DefaultMessages["InvalidFormat"], map[string]string{})},
 				},
 				form: createObject{
 					Person:     &Person{Age: toIntPointer(26)},
-					PersonList: []*Person{},
+					PersonList: []Person{},
 				},
 			},
 		},
