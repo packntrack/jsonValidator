@@ -2,6 +2,21 @@
 
 #### JsonValidator is a package that helps create CRUD APIs by validating HTTP JSON bodies against a predefined "form" struct.
 
+### TL;DR
+This is a basic example on how to use this package.
+```go
+type Object struct {
+    ID             *string    `validations:"type=string;required=true`
+    Code           *int       `validations:"type=int;choices=1,2,3`
+    Person         *Person    `validations:"type=struct`
+    Owners         []string   `validations:"type=[]string`
+}
+
+form := new(Object)
+validationErrors := jsonValidator.Validate(c.Body(), form)
+```
+
+
 ## Available validations
 
 ### Types
